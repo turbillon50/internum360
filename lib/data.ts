@@ -1,0 +1,110 @@
+
+export const ME = {
+  nombre: "Hugo Alcántara",
+  rol: "Director",
+  avatar: "HA",
+  despacho: "Internum 360",
+};
+
+export const CLIENTES = [
+  {
+    id: "c1",
+    empresa: "Constructora del Bajío",
+    sector: "Construcción",
+    avance: 82,
+    estatus: "En proceso",
+    vence: "30 jun",
+    auditor: "Hugo Alcántara",
+    color: "#0ea5e9",
+    img: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&q=80",
+    servicios: ["Auditoría Fiscal", "Control Interno"],
+    rfc: "GCB8803124K2",
+  },
+  {
+    id: "c2",
+    empresa: "Inmobiliaria Querétaro",
+    sector: "Inmobiliario",
+    avance: 97,
+    estatus: "Por cerrar",
+    vence: "22 jun",
+    auditor: "Hugo Alcántara",
+    color: "#10b981",
+    img: "https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=400&q=80",
+    servicios: ["Auditoría Fiscal"],
+    rfc: "IQR0312456N1",
+  },
+  {
+    id: "c3",
+    empresa: "Distribuidora Norte",
+    sector: "Comercio",
+    avance: 45,
+    estatus: "Pendiente",
+    vence: "15 jul",
+    auditor: "Sofía Ramírez",
+    color: "#f59e0b",
+    img: "https://images.unsplash.com/photo-1553413077-190dd305871c?w=400&q=80",
+    servicios: ["Contabilidad", "Trámites SAT"],
+    rfc: "DNS9105287M3",
+  },
+  {
+    id: "c4",
+    empresa: "TechSolutions MX",
+    sector: "Tecnología",
+    avance: 30,
+    estatus: "Iniciando",
+    vence: "1 ago",
+    auditor: "Diego Morales",
+    color: "#8b5cf6",
+    img: "https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&q=80",
+    servicios: ["Control Interno", "Auditoría Fiscal"],
+    rfc: "TSM1507891P4",
+  },
+  {
+    id: "c5",
+    empresa: "Agropecuaria Jalisco",
+    sector: "Agro",
+    avance: 70,
+    estatus: "En proceso",
+    vence: "10 jul",
+    auditor: "Valentina Cruz",
+    color: "#3b82f6",
+    img: "https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=80",
+    servicios: ["Contabilidad"],
+    rfc: "AJL8812334Q5",
+  },
+  {
+    id: "c6",
+    empresa: "Farmacéutica del Golfo",
+    sector: "Salud",
+    avance: 88,
+    estatus: "En proceso",
+    vence: "5 jul",
+    auditor: "Valentina Cruz",
+    color: "#ec4899",
+    img: "https://images.unsplash.com/photo-1583324113626-70df0f4deaab?w=400&q=80",
+    servicios: ["Control Interno", "Contabilidad"],
+    rfc: "FDG0104567U8",
+  },
+];
+
+export const TAREAS = [
+  { id:"t1", clienteId:"c1", titulo:"Revisión estados financieros Q1", vence:"20 jun", prioridad:"Alta",  estatus:"En proceso", pct:80 },
+  { id:"t2", clienteId:"c1", titulo:"Conciliación bancaria mayo",      vence:"22 jun", prioridad:"Media", estatus:"Pendiente",  pct:0  },
+  { id:"t3", clienteId:"c2", titulo:"Informe final de auditoría",      vence:"21 jun", prioridad:"Alta",  estatus:"Revisión",   pct:95 },
+  { id:"t4", clienteId:"c3", titulo:"Declaración ISR anual",           vence:"25 jun", prioridad:"Alta",  estatus:"En proceso", pct:40 },
+  { id:"t5", clienteId:"c5", titulo:"Cierre contable mayo",            vence:"18 jun", prioridad:"Alta",  estatus:"Vencida",    pct:60 },
+  { id:"t6", clienteId:"c6", titulo:"Revisión proc. de calidad",       vence:"2 jul",  prioridad:"Alta",  estatus:"En proceso", pct:75 },
+];
+
+export const BRAIN_QA = [
+  { q:"pendientes constructora",       a:"**Constructora del Bajío** tiene 2 tareas activas:\n\n• Revisión estados financieros Q1 — vence 20 jun, 80% avance\n• Conciliación bancaria mayo — vence 22 jun, pendiente\n\nAvance global: **82%**." },
+  { q:"80",                            a:"3 clientes superan el 80%:\n\n• Inmobiliaria Querétaro — **97%** (lista para cierre)\n• Farmacéutica del Golfo — **88%**\n• Constructora del Bajío — **82%**" },
+  { q:"vencida",                       a:"1 tarea vencida:\n\n• **Cierre contable mayo** — Agropecuaria Jalisco, responsable Valentina Cruz. Venció hoy con 60% de avance." },
+  { q:"resumen",                       a:"**Resumen del despacho — Jun 2026:**\n\n✅ Inmobiliaria Querétaro 97%\n🔵 Farmacéutica del Golfo 88%\n🔵 Constructora del Bajío 82%\n🟡 Agropecuaria Jalisco 70%\n🟡 Distribuidora Norte 45%\n🔴 TechSolutions MX 30%\n\nPromedio: **68.7%**" },
+  { q:"equipo",                        a:"**Equipo activo:**\n\n• Hugo Alcántara (Director) — 2 clientes\n• Sofía Ramírez (Auditora Sr) — 1 cliente\n• Diego Morales (Auditor Jr) — 1 cliente\n• Valentina Cruz (Contadora) — 2 clientes" },
+];
+
+export const KPI = [
+  { mes:"Ene", v:68 }, { mes:"Feb", v:72 }, { mes:"Mar", v:85 },
+  { mes:"Abr", v:91 }, { mes:"May", v:88 }, { mes:"Jun", v:96 },
+];
