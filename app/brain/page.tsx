@@ -1,4 +1,3 @@
-
 "use client";
 import { useState, useRef, useEffect } from "react";
 import { BRAIN_QA } from "@/lib/data";
@@ -6,13 +5,13 @@ import { IcSend, IcBrain } from "@/components/Ic";
 
 type Msg = { role:"user"|"ai"; text:string };
 
-const SUGERENCIAS = ["Resumen del despacho","Tareas vencidas","Clientes +80%","Ver mi equipo"];
+const SUGERENCIAS = ["Resumen del despacho","Tareas vencidas","Clientes +80%","Ingresos junio","Ver mi equipo"];
 
 export default function Brain() {
   const [msgs, setMsgs] = useState<Msg[]>([
-    { role:"ai", text:"Hola Hugo 👋 Soy tu asistente **Internum Brain**. Pregúntame sobre expedientes, tareas o tu equipo." }
+    { role:"ai", text:"Hola Hugo 👋 Soy tu asistente **Internum Brain**. Pregúntame sobre expedientes, tareas, ingresos o tu equipo." }
   ]);
-  const [input, setInput] = useState("");
+  const [input,   setInput]   = useState("");
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -20,12 +19,13 @@ export default function Brain() {
     bottomRef.current?.scrollIntoView({ behavior:"smooth" });
   }, [msgs, loading]);
 
+  // Fallback local cuando V no está disponible
   function responde(q: string): string {
     const ql = q.toLowerCase();
     for (const qa of BRAIN_QA) {
       if (ql.includes(qa.q.toLowerCase())) return qa.a;
     }
-    return `Revisé los expedientes activos. No encontré datos específicos para esa consulta, pero puedo ayudarte con **pendientes**, **avances**, **tareas vencidas** o el **resumen del despacho**.`;
+    return `Revisé los expedientes activos. No encontré datos específicos para esa consulta, pero puedo ayudarte con **pendientes**, **avances**, **tareas vencidas**, **ingresos** o el **resumen del despacho**.`;
   }
 
   async function send(texto?: string) {
@@ -34,8 +34,25 @@ export default function Brain() {
     setInput("");
     setMsgs(m => [...m, { role:"user", text:q }]);
     setLoading(true);
-    await new Promise(r => setTimeout(r, 900 + Math.random()*400));
-    setMsgs(m => [...m, { role:"ai", text:responde(q) }]);
+
+    let respuesta = "";
+    try {
+      const res = await fetch("/api/brain-chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: q }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        respuesta = data.reply || responde(q);
+      } else {
+        respuesta = responde(q);
+      }
+    } catch {
+      respuesta = responde(q);
+    }
+
+    setMsgs(m => [...m, { role:"ai", text:respuesta }]);
     setLoading(false);
   }
 
@@ -69,7 +86,7 @@ export default function Brain() {
         </div>
       </div>
 
-      {/* SUGERENCIAS — solo si no hay historial largo */}
+      {/* SUGERENCIAS */}
       {msgs.length <= 1 && (
         <div style={{ padding:"16px 16px 0", display:"flex", gap:"8px",
           overflowX:"auto", scrollbarWidth:"none" }}>
@@ -112,7 +129,6 @@ export default function Brain() {
           </div>
         ))}
 
-        {/* Loading bubble */}
         {loading && (
           <div style={{ display:"flex", justifyContent:"flex-start", gap:"8px", alignItems:"flex-end" }}>
             <div style={{ width:"30px", height:"30px", borderRadius:"50%",

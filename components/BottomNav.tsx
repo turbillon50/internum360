@@ -1,20 +1,19 @@
-
 "use client";
 import { useRouter, usePathname } from "next/navigation";
-import { IcHome, IcBriefcase, IcBrain, IcUser } from "./Ic";
+import { IcHome, IcBriefcase, IcBrain, IcDatabase, IcUser } from "./Ic";
 
 const tabs = [
-  { label:"Inicio",    path:"/",         Icon:IcHome      },
-  { label:"Clientes",  path:"/clientes", Icon:IcBriefcase },
-  { label:"Brain",     path:"/brain",    Icon:IcBrain     },
-  { label:"Perfil",    path:"/perfil",   Icon:IcUser      },
+  { label:"Inicio",    path:"/",            Icon:IcHome      },
+  { label:"Clientes",  path:"/clientes",    Icon:IcBriefcase },
+  { label:"Brain",     path:"/brain",       Icon:IcBrain     },
+  { label:"Base",      path:"/conocimiento",Icon:IcDatabase  },
+  { label:"Perfil",    path:"/perfil",      Icon:IcUser      },
 ];
 
 export default function BottomNav() {
   const router   = useRouter();
   const pathname = usePathname();
 
-  // hide on splash
   if (pathname === "/splash") return null;
 
   return (
@@ -34,16 +33,16 @@ export default function BottomNav() {
               background: "none",
               border: "none",
               cursor: "pointer",
-              padding: "0 4px",
+              padding: "0 2px",
             }}
           >
             <Icon
-              size={24}
+              size={22}
               color={active ? "var(--primary)" : "var(--text3)"}
               strokeWidth={active ? 2.2 : 1.8}
             />
             <span style={{
-              fontSize: "10px",
+              fontSize: "9px",
               fontWeight: active ? 700 : 400,
               color: active ? "var(--primary)" : "var(--text3)",
               letterSpacing: "0.01em",
