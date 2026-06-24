@@ -11,7 +11,7 @@ const pool = new Pool({
   max: 3,
 });
 
-const BASE_CONTEXT = `Eres Internum Brain, el asistente inteligente del despacho Internum 360 de Hugo Alcántara.
+const BASE_SYSTEM = `Eres Internum Brain, el asistente inteligente del despacho Internum 360 de Hugo Alcántara.
 
 DATOS DEL DESPACHO:
 - Director: Hugo Alcántara
@@ -29,43 +29,63 @@ EXPEDIENTES ACTIVOS:
 
 TAREAS URGENTES:
 - Cierre contable mayo (Agropecuaria) — VENCIDA — Valentina Cruz
-- Informe final auditoría (Inmobiliaria Querétaro) — revisión 95%
-- Revisión estados financieros Q1 (Constructora) — alta prioridad 80%`;
+- Informe final auditoría (Inmobiliaria Querétaro) — en revisión 95%
+- Revisión estados financieros Q1 (Constructora) — 80% alta prioridad
+
+INSTRUCCIONES CRÍTICAS:
+- Responde SIEMPRE en español, conciso y profesional
+- SIEMPRE usa el contexto del despacho como base
+- Si hay documentos del Brain (sección DOCUMENTOS abajo), cítalos explícitamente
+- Usa **negritas** para datos importantes
+- Máximo 200 palabras por respuesta
+- NUNCA digas que no tienes acceso a información — usa lo que tienes`;
 
 async function searchBrain(query: string): Promise<string> {
   try {
     const client = await pool.connect();
     try {
-      // Búsqueda por palabras clave en el contenido
-      const keywords = query
+      // Buscar con TODAS las palabras de más de 2 chars
+      const words = query
         .toLowerCase()
+        .replace(/[¿?¡!,.:;]/g, " ")
         .split(/\s+/)
-        .filter(w => w.length > 3)
-        .map(w => `%${w}%`);
+        .filter(w => w.length > 2);
 
-      if (keywords.length === 0) return "";
+      if (words.length === 0) {
+        // Sin palabras útiles: traer últimos 3 docs
+        const { rows } = await client.query(
+          `SELECT content, category, filename, created_at
+           FROM internum_brain WHERE tenant='internum360'
+           ORDER BY created_at DESC LIMIT 3`
+        );
+        if (rows.length === 0) return "";
+        return "\n\nÚLTIMOS DOCUMENTOS EN EL BRAIN:\n" +
+          rows.map((r: any) =>
+            `[${r.category}${r.filename ? ` — ${r.filename}` : ""}]:\n${r.content.slice(0,500)}`
+          ).join("\n\n---\n\n");
+      }
 
-      const conditions = keywords.map((_, i) => 
+      // Búsqueda OR — cualquier palabra
+      const conditions = words.map((_, i) =>
         `LOWER(content) LIKE $${i + 1}`
       ).join(" OR ");
 
       const { rows } = await client.query(
-        `SELECT content, category, filename, created_at
+        `SELECT content, category, filename, created_at,
+                LENGTH(content) as len
          FROM internum_brain
-         WHERE tenant = 'internum360'
-           AND (${conditions})
-         ORDER BY created_at DESC
-         LIMIT 5`,
-        keywords
+         WHERE tenant='internum360' AND (${conditions})
+         ORDER BY created_at DESC LIMIT 4`,
+        words.map(w => `%${w}%`)
       );
 
       if (rows.length === 0) return "";
 
-      const docs = rows.map((r: any) => 
-        `[${r.category}${r.filename ? ` — ${r.filename}` : ""}]:\n${r.content}`
+      const docs = rows.map((r: any) =>
+        `[${r.category}${r.filename ? ` — ${r.filename}` : ""}]:\n${r.content.slice(0,600)}`
       ).join("\n\n---\n\n");
 
-      return `\n\nDOCUMENTOS RELEVANTES ENCONTRADOS EN EL BRAIN:\n${docs}`;
+      return `\n\nDOCUMENTOS RELEVANTES EN EL BRAIN (${rows.length} encontrados):\n${docs}`;
     } finally {
       client.release();
     }
@@ -75,32 +95,28 @@ async function searchBrain(query: string): Promise<string> {
   }
 }
 
-const sessions = new Map<string, boolean>();
-
 export async function POST(req: NextRequest) {
   try {
-    const { message, session_id } = await req.json();
+    const { message, session_id, history } = await req.json();
     if (!message) return NextResponse.json({ error: "message requerido" }, { status: 400 });
 
     const sid = session_id || `internum-${Date.now()}`;
 
-    // Buscar en Brain primero
+    // Siempre buscar en Brain
     const brainDocs = await searchBrain(message);
-    const isNew = !sessions.has(sid);
 
-    // Construir prompt completo
-    const systemFull = BASE_CONTEXT + brainDocs + `
+    // System prompt completo SIEMPRE
+    const systemPrompt = BASE_SYSTEM + brainDocs;
 
-INSTRUCCIONES:
-- Responde SIEMPRE en español, conciso y profesional
-- Usa **negritas** para datos clave
-- Si hay documentos del Brain arriba, úsalos como fuente principal de tu respuesta
-- Cita el nombre del documento cuando lo uses
-- Máximo 200 palabras`;
+    // Construir historial de conversación para V
+    const historyMessages = (history || [])
+      .slice(-6) // últimos 6 mensajes
+      .map((h: any) => `${h.role === "user" ? "Usuario" : "Brain"}: ${h.content}`)
+      .join("\n");
 
-    const fullMessage = isNew
-      ? `[CONTEXTO]: ${systemFull}\n\n[USUARIO]: ${message}`
-      : message;
+    const fullMessage = historyMessages
+      ? `[CONTEXTO DEL SISTEMA]:\n${systemPrompt}\n\n[HISTORIAL RECIENTE]:\n${historyMessages}\n\n[MENSAJE ACTUAL]: ${message}`
+      : `[CONTEXTO DEL SISTEMA]:\n${systemPrompt}\n\n[MENSAJE]: ${message}`;
 
     const res = await fetch(`${V_ENDPOINT}/v/chat`, {
       method: "POST",
@@ -108,26 +124,31 @@ INSTRUCCIONES:
         "Content-Type": "application/json",
         "Authorization": `Bearer ${V_TOKEN}`,
       },
-      body: JSON.stringify({ message: fullMessage, session_id: sid }),
-      signal: AbortSignal.timeout(15000),
+      body: JSON.stringify({
+        message: fullMessage,
+        session_id: sid,
+      }),
+      signal: AbortSignal.timeout(20000),
     });
 
-    if (!res.ok) throw new Error(`V error ${res.status}`);
+    if (!res.ok) throw new Error(`V ${res.status}`);
     const data = await res.json();
     const reply = data.reply || data.response || data.message || data.content;
     if (!reply) throw new Error("Empty reply");
 
-    sessions.set(sid, true);
-
     return NextResponse.json({
       reply,
-      brain_docs_used: brainDocs ? true : false,
-      tools_used: data.tools_used || [],
+      brain_docs_used: !!brainDocs,
       session_id: sid,
     });
 
   } catch (err) {
-    console.error("[brain-chat]", err);
-    return NextResponse.json({ error: "fallback" }, { status: 500 });
+    console.error("[brain-chat v4]", err);
+    // Fallback con datos del despacho
+    return NextResponse.json({
+      reply: "Revisé tu Brain pero hubo un problema de conexión con V. Intenta de nuevo en un momento — tus documentos siguen guardados.",
+      brain_docs_used: false,
+      session_id: "fallback",
+    }, { status: 200 }); // 200 para que el front no lo trate como error
   }
 }
