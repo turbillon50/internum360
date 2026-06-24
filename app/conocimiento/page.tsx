@@ -66,24 +66,25 @@ export default function Conocimiento() {
   }
 
   async function handleFile(file: File) {
-    const text = await file.text().catch(() => "");
-    const content = text.trim() || `Archivo: ${file.name}`;
     const ext = file.name.split(".").pop()?.toUpperCase() || "";
     const cat = ext === "PDF" ? "Auditoría" : ext === "DOCX" ? "Procesos" : catSel;
-
+    setSaving(true);
     try {
-      const res = await fetch("/api/brain-docs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, category: cat, filename: file.name }),
-      });
+      const form = new FormData();
+      form.append("file", file);
+      form.append("category", cat);
+      const res = await fetch("/api/brain-docs", { method: "POST", body: form });
+      const data = await res.json();
       if (res.ok) {
-        showToast(`✓ ${file.name} guardado en Brain`);
+        showToast(`✓ ${file.name} — ${data.chunks} fragmento(s) en Brain`);
         await loadDocs();
+      } else {
+        showToast(data.error || "Error subiendo", false);
       }
     } catch {
       showToast("Error subiendo archivo", false);
     }
+    setSaving(false);
   }
 
   function onDrop(e: React.DragEvent) {
