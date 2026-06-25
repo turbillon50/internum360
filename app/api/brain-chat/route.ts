@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+export const runtime = "nodejs";
 import { Pool } from "pg";
 
 const V_ENDPOINT = "https://pastor-requiring-leaving-parties.trycloudflare.com";
