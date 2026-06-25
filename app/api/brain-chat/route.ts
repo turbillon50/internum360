@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 export const runtime = "nodejs";
 import { Pool } from "pg";
 
-const V_ENDPOINT = "https://pastor-requiring-leaving-parties.trycloudflare.com";
-const V_TOKEN    = "f1d6012090e70839621ed05f4c7a2ec133c7e9b291dd6d8b";
+// Relay Hetzner → Ollama local (system prompt propio, sin personalidad de V)
+const LLM_ENDPOINT = "http://178.105.135.26/brain/llm";
 
 const pool = new Pool({
   connectionString: process.env.NEON_URL ||
@@ -13,6 +13,12 @@ const pool = new Pool({
 });
 
 const BASE_SYSTEM = `Eres Internum Brain, el asistente inteligente del despacho Internum 360 de Hugo Alcántara.
+
+REGLAS DE IDENTIDAD (CRÍTICAS):
+- Eres exclusivamente "Internum Brain", el asistente del despacho Internum 360.
+- NUNCA digas ser "V", ni "hermana digital", ni menciones a "Luis" ni a "Luis de la Torre".
+- Si te preguntan quién eres: eres el asistente del despacho Internum 360, nada más.
+- Si te preguntan algo personal o ajeno al despacho, responde con cortesía que solo manejas información del despacho.
 
 DATOS DEL DESPACHO:
 - Director: Hugo Alcántara
@@ -33,59 +39,41 @@ TAREAS URGENTES:
 - Informe final auditoría (Inmobiliaria Querétaro) — en revisión 95%
 - Revisión estados financieros Q1 (Constructora) — 80% alta prioridad
 
-INSTRUCCIONES CRÍTICAS:
+INSTRUCCIONES:
 - Responde SIEMPRE en español, conciso y profesional
-- SIEMPRE usa el contexto del despacho como base
-- Si hay documentos del Brain (sección DOCUMENTOS abajo), cítalos explícitamente
+- Usa el contexto del despacho como base
+- Si hay DOCUMENTOS DEL BRAIN abajo, cítalos explícitamente
 - Usa **negritas** para datos importantes
-- Máximo 200 palabras por respuesta
-- NUNCA digas que no tienes acceso a información — usa lo que tienes`;
+- Máximo 180 palabras por respuesta
+- Nunca digas que no tienes acceso — usa lo que tienes`;
 
 async function searchBrain(query: string): Promise<string> {
   try {
     const client = await pool.connect();
     try {
-      // Buscar con TODAS las palabras de más de 2 chars
-      const words = query
-        .toLowerCase()
+      const words = query.toLowerCase()
         .replace(/[¿?¡!,.:;]/g, " ")
-        .split(/\s+/)
-        .filter(w => w.length > 2);
+        .split(/\s+/).filter(w => w.length > 2);
 
       if (words.length === 0) {
-        // Sin palabras útiles: traer últimos 3 docs
         const { rows } = await client.query(
-          `SELECT content, category, filename, created_at
-           FROM internum_brain WHERE tenant='internum360'
-           ORDER BY created_at DESC LIMIT 3`
+          `SELECT content, category, filename FROM internum_brain
+           WHERE tenant='internum360' ORDER BY created_at DESC LIMIT 3`
         );
         if (rows.length === 0) return "";
         return "\n\nÚLTIMOS DOCUMENTOS EN EL BRAIN:\n" +
-          rows.map((r: any) =>
-            `[${r.category}${r.filename ? ` — ${r.filename}` : ""}]:\n${r.content.slice(0,500)}`
-          ).join("\n\n---\n\n");
+          rows.map((r: any) => `[${r.category}${r.filename ? ` — ${r.filename}` : ""}]:\n${r.content.slice(0,500)}`).join("\n\n---\n\n");
       }
 
-      // Búsqueda OR — cualquier palabra
-      const conditions = words.map((_, i) =>
-        `LOWER(content) LIKE $${i + 1}`
-      ).join(" OR ");
-
+      const conditions = words.map((_, i) => `LOWER(content) LIKE $${i + 1}`).join(" OR ");
       const { rows } = await client.query(
-        `SELECT content, category, filename, created_at,
-                LENGTH(content) as len
-         FROM internum_brain
+        `SELECT content, category, filename FROM internum_brain
          WHERE tenant='internum360' AND (${conditions})
          ORDER BY created_at DESC LIMIT 4`,
         words.map(w => `%${w}%`)
       );
-
       if (rows.length === 0) return "";
-
-      const docs = rows.map((r: any) =>
-        `[${r.category}${r.filename ? ` — ${r.filename}` : ""}]:\n${r.content.slice(0,600)}`
-      ).join("\n\n---\n\n");
-
+      const docs = rows.map((r: any) => `[${r.category}${r.filename ? ` — ${r.filename}` : ""}]:\n${r.content.slice(0,600)}`).join("\n\n---\n\n");
       return `\n\nDOCUMENTOS RELEVANTES EN EL BRAIN (${rows.length} encontrados):\n${docs}`;
     } finally {
       client.release();
@@ -102,54 +90,33 @@ export async function POST(req: NextRequest) {
     if (!message) return NextResponse.json({ error: "message requerido" }, { status: 400 });
 
     const sid = session_id || `internum-${Date.now()}`;
-
-    // Siempre buscar en Brain
     const brainDocs = await searchBrain(message);
-
-    // System prompt completo SIEMPRE
     const systemPrompt = BASE_SYSTEM + brainDocs;
 
-    // Construir historial de conversación para V
-    const historyMessages = (history || [])
-      .slice(-6) // últimos 6 mensajes
-      .map((h: any) => `${h.role === "user" ? "Usuario" : "Brain"}: ${h.content}`)
-      .join("\n");
-
-    const fullMessage = historyMessages
-      ? `[CONTEXTO DEL SISTEMA]:\n${systemPrompt}\n\n[HISTORIAL RECIENTE]:\n${historyMessages}\n\n[MENSAJE ACTUAL]: ${message}`
-      : `[CONTEXTO DEL SISTEMA]:\n${systemPrompt}\n\n[MENSAJE]: ${message}`;
-
-    const res = await fetch(`${V_ENDPOINT}/v/chat`, {
+    const res = await fetch(LLM_ENDPOINT, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${V_TOKEN}`,
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: fullMessage,
-        session_id: sid,
+        system: systemPrompt,
+        message,
+        history: (history || []).slice(-6),
       }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(90000),
     });
 
-    if (!res.ok) throw new Error(`V ${res.status}`);
+    if (!res.ok) throw new Error(`LLM ${res.status}`);
     const data = await res.json();
-    const reply = data.reply || data.response || data.message || data.content;
+    const reply = data.reply;
     if (!reply) throw new Error("Empty reply");
 
-    return NextResponse.json({
-      reply,
-      brain_docs_used: !!brainDocs,
-      session_id: sid,
-    });
+    return NextResponse.json({ reply, brain_docs_used: !!brainDocs, session_id: sid });
 
   } catch (err) {
-    console.error("[brain-chat v4]", err);
-    // Fallback con datos del despacho
+    console.error("[brain-chat v5]", err);
     return NextResponse.json({
-      reply: "Revisé tu Brain pero hubo un problema de conexión con V. Intenta de nuevo en un momento — tus documentos siguen guardados.",
+      reply: "Tuve un problema de conexión procesando tu consulta. Intenta de nuevo en un momento — tus documentos siguen guardados en el Brain.",
       brain_docs_used: false,
       session_id: "fallback",
-    }, { status: 200 }); // 200 para que el front no lo trate como error
+    }, { status: 200 });
   }
 }
