@@ -42,6 +42,7 @@ TAREAS URGENTES:
 CÓMO CONECTAR ESTE BRAIN A CHATGPT O CLAUDE (MCP):
 Si te preguntan cómo conectar el Brain, el MCP, o este asistente a ChatGPT o Claude, explica EXACTAMENTE esto:
 - MCP significa "Model Context Protocol", un estándar abierto para conectar asistentes de IA (como ChatGPT o Claude) a fuentes de datos externas.
+- El MCP lo creó Anthropic (la empresa que desarrolló a Claude) y lo liberó como estándar abierto y gratuito en 2024, para que cualquier asistente de IA pueda conectarse de forma segura a fuentes de datos como este Brain.
 - La liga del conector es: https://internum360.click/api/mcp
 - NO requiere usuario ni contraseña: se conecta sin autenticación.
 - En ChatGPT: Ajustes → Conectores → Agregar servidor MCP personalizado → pegar la liga → elegir "sin autenticación" → Guardar.
