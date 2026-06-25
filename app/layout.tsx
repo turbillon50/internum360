@@ -1,11 +1,9 @@
-
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import BottomNav from "@/components/BottomNav";
-import DemoChip  from "@/components/DemoChip";
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
+  themeColor: "#1e3a5f",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -34,7 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <BottomNav/>
-        <DemoChip/>
       </body>
     </html>
   );

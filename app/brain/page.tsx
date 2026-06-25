@@ -5,7 +5,6 @@ import { IcSend, IcBrain } from "@/components/Ic";
 
 type Msg = { role:"user"|"ai"; text:string };
 
-// SESSION_ID fijo en localStorage — sobrevive navegación
 const SESSION_KEY = "internum_session_id";
 const MSGS_KEY    = "internum_chat_msgs";
 
@@ -19,20 +18,10 @@ function getSessionId(): string {
   return sid;
 }
 
-function saveMsgs(msgs: Msg[]) {
-  try {
-    // Guardar últimos 30 mensajes
-    localStorage.setItem(MSGS_KEY, JSON.stringify(msgs.slice(-30)));
-  } catch {}
-}
-
-function loadMsgs(): Msg[] {
-  try {
-    const raw = localStorage.getItem(MSGS_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return [{ role:"ai", text:"Hola Hugo 👋 Soy tu asistente **Internum Brain**. Pregúntame sobre expedientes, tareas, ingresos, documentos o tu equipo." }];
-}
+const MSG_INICIAL: Msg[] = [{
+  role:"ai",
+  text:"Hola Hugo 👋 Soy tu asistente **Internum Brain**.\nPregúntame sobre expedientes, tareas, ingresos, documentos o tu equipo."
+}];
 
 const SUGERENCIAS = [
   "Resumen del despacho",
@@ -43,21 +32,29 @@ const SUGERENCIAS = [
 ];
 
 export default function Brain() {
-  const [msgs,    setMsgs]    = useState<Msg[]>([]);
+  const [msgs,    setMsgs]    = useState<Msg[]>(MSG_INICIAL);
   const [input,   setInput]   = useState("");
   const [loading, setLoading] = useState(false);
   const [sid,     setSid]     = useState("");
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const [ready,   setReady]   = useState(false);
+  const bottomRef  = useRef<HTMLDivElement>(null);
+  const inputRef   = useRef<HTMLInputElement>(null);
   const initialized = useRef(false);
 
-  // Cargar sesión y mensajes del localStorage al montar
+  // Cargar sesión al montar (solo client-side)
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
     const sessionId = getSessionId();
     setSid(sessionId);
-    const savedMsgs = loadMsgs();
-    setMsgs(savedMsgs);
+    try {
+      const raw = localStorage.getItem(MSGS_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as Msg[];
+        if (saved.length > 0) setMsgs(saved);
+      }
+    } catch {}
+    setReady(true);
   }, []);
 
   // Scroll al fondo
@@ -65,17 +62,30 @@ export default function Brain() {
     bottomRef.current?.scrollIntoView({ behavior:"smooth" });
   }, [msgs, loading]);
 
-  // Guardar mensajes cuando cambian
+  // Guardar mensajes
   useEffect(() => {
-    if (msgs.length > 0) saveMsgs(msgs);
-  }, [msgs]);
+    if (!ready || msgs.length === 0) return;
+    try { localStorage.setItem(MSGS_KEY, JSON.stringify(msgs.slice(-30))); } catch {}
+  }, [msgs, ready]);
+
+  // Ajuste de viewport cuando abre teclado en iOS
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    function onResize() {
+      // forzar scroll al fondo cuando teclado sube
+      bottomRef.current?.scrollIntoView({ behavior:"smooth" });
+    }
+    vv.addEventListener("resize", onResize);
+    return () => vv.removeEventListener("resize", onResize);
+  }, []);
 
   function responde(q: string): string {
     const ql = q.toLowerCase();
     for (const qa of BRAIN_QA) {
       if (ql.includes(qa.q.toLowerCase())) return qa.a;
     }
-    return `Revisé tu Brain. Pregúntame sobre **expedientes**, **tareas vencidas**, **ingresos**, **documentos subidos** o el **resumen del despacho**.`;
+    return "Revisé tu Brain. Pregúntame sobre **expedientes**, **tareas vencidas**, **ingresos**, **documentos subidos** o el **resumen del despacho**.";
   }
 
   async function send(texto?: string) {
@@ -83,19 +93,18 @@ export default function Brain() {
     if (!q || loading) return;
     setInput("");
 
-    const newMsgs = [...msgs, { role:"user" as const, text:q }];
+    const newMsgs: Msg[] = [...msgs, { role:"user", text:q }];
     setMsgs(newMsgs);
     setLoading(true);
 
     let respuesta = "";
     try {
       const res = await fetch("/api/brain-chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: q,
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify({
+          message:q,
           session_id: sid || getSessionId(),
-          // Pasar los últimos 4 mensajes como historial
           history: newMsgs.slice(-8).map(m => ({
             role: m.role === "user" ? "user" : "assistant",
             content: m.text,
@@ -119,28 +128,28 @@ export default function Brain() {
   function limpiarChat() {
     const inicial: Msg[] = [{ role:"ai", text:"Chat reiniciado. Hola de nuevo Hugo 👋 ¿En qué te ayudo?" }];
     setMsgs(inicial);
-    // Nueva sesión
     const newSid = `internum-${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
-    localStorage.setItem(SESSION_KEY, newSid);
+    if (typeof window !== "undefined") localStorage.setItem(SESSION_KEY, newSid);
     setSid(newSid);
   }
 
   function renderText(t: string) {
     return t.split("\n").map((line, i) => {
-      const bold = line.replace(/\*\*(.+?)\*\*/g, (_,m) => `<strong>${m}</strong>`);
-      return <p key={i} style={{ margin:"2px 0", lineHeight:1.5 }}
-        dangerouslySetInnerHTML={{ __html:bold }}/>;
+      const html = line.replace(/\*\*(.+?)\*\*/g, (_,m) => `<strong>${m}</strong>`);
+      return (
+        <p key={i} style={{ margin:"2px 0", lineHeight:1.55 }}
+          dangerouslySetInnerHTML={{ __html:html }}/>
+      );
     });
   }
 
   return (
-    <main style={{ background:"#f7f7f7", minHeight:"100dvh",
-      display:"flex", flexDirection:"column",
-      paddingBottom:"calc(var(--bottom-h) + 80px)" }}>
+    <div style={{ display:"flex", flexDirection:"column",
+      height:"100dvh", background:"#f7f7f7", overflow:"hidden" }}>
 
-      {/* HEADER */}
-      <div style={{ background:"white", padding:"52px 20px 16px",
-        borderBottom:"1px solid var(--border)", position:"sticky", top:0, zIndex:10 }}>
+      {/* HEADER sticky */}
+      <div style={{ background:"white", padding:"52px 20px 14px",
+        borderBottom:"1px solid var(--border)", flexShrink:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
             <div style={{ width:"40px", height:"40px", borderRadius:"12px",
@@ -157,36 +166,52 @@ export default function Brain() {
               </p>
             </div>
           </div>
-          {/* Botón limpiar chat */}
           {msgs.length > 2 && (
             <button onClick={limpiarChat} style={{
               padding:"6px 12px", borderRadius:"40px",
               border:"1.5px solid var(--border)", background:"white",
-              fontSize:"11px", fontWeight:600, color:"var(--text2)",
-              cursor:"pointer",
+              fontSize:"11px", fontWeight:600, color:"var(--text2)", cursor:"pointer",
             }}>↺ Nuevo</button>
           )}
         </div>
       </div>
 
-      {/* SUGERENCIAS — solo al inicio */}
+      {/* SUGERENCIAS — solo al inicio, scroll horizontal sin cortes */}
       {msgs.length <= 1 && (
-        <div style={{ padding:"16px 16px 0", display:"flex", gap:"8px",
-          overflowX:"auto", scrollbarWidth:"none" }}>
+        <div style={{
+          display:"flex", gap:"8px",
+          overflowX:"auto",
+          WebkitOverflowScrolling:"touch" as any,
+          touchAction:"pan-x",
+          scrollbarWidth:"none",
+          padding:"14px 16px 0",
+          flexShrink:0,
+        } as React.CSSProperties}>
           {SUGERENCIAS.map(s => (
             <button key={s} onClick={() => send(s)} style={{
               padding:"8px 14px", borderRadius:"40px",
               border:"1.5px solid var(--border)",
               background:"white", fontSize:"13px", color:"var(--text)",
-              fontWeight:600, cursor:"pointer", whiteSpace:"nowrap", flexShrink:0,
+              fontWeight:600, cursor:"pointer",
+              whiteSpace:"nowrap", flexShrink:0,
             }}>{s}</button>
           ))}
         </div>
       )}
 
-      {/* MENSAJES */}
-      <div style={{ flex:1, padding:"16px 16px 0",
-        display:"flex", flexDirection:"column", gap:"12px" }}>
+      {/* MENSAJES — scrollable, ocupa el espacio restante */}
+      <div style={{
+        flex:1, overflowY:"auto",
+        WebkitOverflowScrolling:"touch" as any,
+        padding:"16px 16px 0",
+        display:"flex", flexDirection:"column", gap:"12px",
+      } as React.CSSProperties}>
+
+        {/* Skeleton mientras carga del localStorage */}
+        {!ready && (
+          <div className="skeleton" style={{ height:"56px", borderRadius:"14px" }}/>
+        )}
+
         {msgs.map((m, i) => (
           <div key={i} style={{
             display:"flex",
@@ -217,7 +242,7 @@ export default function Brain() {
           </div>
         ))}
 
-        {/* Typing indicator */}
+        {/* Typing dots */}
         {loading && (
           <div style={{ display:"flex", alignItems:"flex-end", gap:"8px" }}>
             <div style={{ width:"30px", height:"30px", borderRadius:"50%",
@@ -237,35 +262,42 @@ export default function Brain() {
             </div>
           </div>
         )}
-        <div ref={bottomRef}/>
+        <div ref={bottomRef} style={{ height:"8px" }}/>
       </div>
 
-      {/* INPUT */}
+      {/* INPUT — fijo arriba del bottom nav, no fixed para no conflictar con teclado iOS */}
       <div style={{
-        position:"fixed", bottom:"var(--bottom-h)", left:0, right:0,
-        background:"white", borderTop:"1px solid var(--border)",
+        background:"white",
+        borderTop:"1px solid var(--border)",
         padding:"10px 16px",
-        paddingBottom:"calc(10px + env(safe-area-inset-bottom,0px))",
-        display:"flex", gap:"10px", alignItems:"flex-end", zIndex:50,
+        paddingBottom:"calc(10px + env(safe-area-inset-bottom, 0px))",
+        display:"flex", gap:"10px", alignItems:"center",
+        flexShrink:0,
+        /* Espacio para la bottom nav */
+        marginBottom:"var(--bottom-h)",
       }}>
         <input
+          ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key==="Enter" && send()}
-          placeholder="Pregunta sobre tus docs, expedientes o tareas…"
+          onKeyDown={e => e.key==="Enter" && !e.shiftKey && send()}
+          placeholder="Pregunta sobre tus docs, expedientes…"
           style={{ flex:1, background:"#f7f7f7", border:"none",
             borderRadius:"22px", padding:"12px 16px",
-            fontSize:"15px", outline:"none", color:"var(--text)" }}
+            fontSize:"15px", outline:"none", color:"var(--text)",
+            minWidth:0,
+          }}
         />
         <button onClick={() => send()} style={{
-          width:"44px", height:"44px", borderRadius:"50%", border:"none",
+          width:"44px", height:"44px", minWidth:"44px",
+          borderRadius:"50%", border:"none",
           background: input.trim() ? "var(--primary)" : "#e8e8e8",
           display:"flex", alignItems:"center", justifyContent:"center",
-          transition:"background .15s", cursor:"pointer", flexShrink:0,
+          transition:"background .15s", cursor:"pointer",
         }}>
           <IcSend size={18} color={input.trim() ? "white" : "var(--text3)"}/>
         </button>
       </div>
-    </main>
+    </div>
   );
 }
