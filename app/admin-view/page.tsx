@@ -1,22 +1,19 @@
-
 "use client";
 import { CLIENTES, TAREAS, KPI } from "@/lib/data";
-import { IcBarChart, IcBriefcase, IcAlert, IcCheck, IcUser } from "@/components/Ic";
+import { useRouter } from "next/navigation";
+import { IcBarChart, IcBriefcase, IcAlert, IcCheck, IcChevL } from "@/components/Ic";
 
 const maxKpi = Math.max(...KPI.map(k => k.v));
 
 const AUDITORS = [
-  { nombre:"Hugo Alcántara", avatar:"HA", color:"#1e3a5f",
-    clientes:2, tareas: 3, prom:89 },
-  { nombre:"Sofía Ramírez",  avatar:"SR", color:"#2a9d8f",
-    clientes:1, tareas: 1, prom:45 },
-  { nombre:"Diego Morales",  avatar:"DM", color:"#8b5cf6",
-    clientes:1, tareas: 1, prom:30 },
-  { nombre:"Valentina Cruz", avatar:"VC", color:"#ec4899",
-    clientes:2, tareas: 2, prom:79 },
+  { nombre:"Hugo Alcántara", avatar:"HA", color:"#1e3a5f", clientes:2, tareas:3, prom:89 },
+  { nombre:"Sofía Ramírez",  avatar:"SR", color:"#2a9d8f", clientes:1, tareas:1, prom:45 },
+  { nombre:"Diego Morales",  avatar:"DM", color:"#8b5cf6", clientes:1, tareas:1, prom:30 },
+  { nombre:"Valentina Cruz", avatar:"VC", color:"#ec4899", clientes:2, tareas:2, prom:79 },
 ];
 
 export default function AdminView() {
+  const router      = useRouter();
   const completadas = TAREAS.filter(t => t.estatus === "Por cerrar" || t.pct===100).length;
   const vencidas    = TAREAS.filter(t => t.estatus === "Vencida").length;
   const promedio    = Math.round(CLIENTES.reduce((a,c) => a+c.avance,0)/CLIENTES.length);
@@ -24,6 +21,16 @@ export default function AdminView() {
   return (
     <main className="page" style={{ background:"#fff" }}>
       <div style={{ padding:"56px 20px 0" }}>
+        {/* Back button */}
+        <button onClick={() => router.back()} style={{
+          display:"flex", alignItems:"center", gap:"4px",
+          background:"none", border:"none", cursor:"pointer",
+          color:"var(--text2)", fontSize:"14px", fontWeight:600,
+          marginBottom:"16px", marginLeft:"-4px", padding:0,
+        }}>
+          <IcChevL size={20} color="var(--text2)"/> Volver
+        </button>
+
         <p style={{ fontSize:"13px", color:"var(--text2)" }}>Panel ejecutivo</p>
         <h1 style={{ fontSize:"28px", fontWeight:800, color:"var(--text)",
           letterSpacing:"-0.8px", marginBottom:"24px" }}>Internum 360</h1>
@@ -31,10 +38,10 @@ export default function AdminView() {
         {/* KPI CARDS */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px", marginBottom:"24px" }}>
           {[
-            { label:"Clientes activos", val:CLIENTES.length,  color:"#1e3a5f", icon:<IcBriefcase size={18} color="white"/> },
-            { label:"Avance promedio",  val:`${promedio}%`,    color:"#2a9d8f", icon:<IcBarChart  size={18} color="white"/> },
-            { label:"Tareas vencidas",  val:vencidas,          color:"#ef4444", icon:<IcAlert     size={18} color="white"/> },
-            { label:"Por cerrar",       val:completadas,       color:"#10b981", icon:<IcCheck     size={18} color="white"/> },
+            { label:"Clientes activos", val:CLIENTES.length, color:"#1e3a5f", icon:<IcBriefcase size={18} color="white"/> },
+            { label:"Avance promedio",  val:`${promedio}%`,   color:"#2a9d8f", icon:<IcBarChart  size={18} color="white"/> },
+            { label:"Tareas vencidas",  val:vencidas,         color:"#ef4444", icon:<IcAlert     size={18} color="white"/> },
+            { label:"Por cerrar",       val:completadas,      color:"#10b981", icon:<IcCheck     size={18} color="white"/> },
           ].map(k => (
             <div key={k.label} style={{ borderRadius:"16px", padding:"18px", background:k.color }}>
               <div style={{ marginBottom:"12px" }}>{k.icon}</div>
@@ -76,7 +83,7 @@ export default function AdminView() {
               justifyContent:"center", color:"white", fontWeight:800, fontSize:"13px", flexShrink:0 }}>
               {a.avatar}
             </div>
-            <div style={{ flex:1 }}>
+            <div style={{ flex:1, minWidth:0 }}>
               <div style={{ display:"flex", justifyContent:"space-between" }}>
                 <p style={{ fontSize:"14px", fontWeight:700, color:"var(--text)" }}>{a.nombre}</p>
                 <span style={{ fontSize:"13px", fontWeight:700, color:a.color }}>{a.prom}%</span>
