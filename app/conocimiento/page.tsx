@@ -45,8 +45,8 @@ export default function Conocimiento() {
   async function extractPdfText(file: File): Promise<string> {
     try {
       const pdfjsLib = await import("pdfjs-dist");
-      // Worker inline para Next.js
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+      // Worker local desde /public (pdfjs v5 usa .mjs, el CDN .js ya no existe)
+      pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
       
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
